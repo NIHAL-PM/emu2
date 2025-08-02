@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EMI Chat App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="theme-color" content="#4CAF50">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='icon.png') }}">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="header">
+            <input type="text" id="username" placeholder="Your username" class="username-input">
+        </div>
+        <div id="chatLog" class="chat-log"></div>
+        <div class="message-input-container">
+            <input type="text" id="messageInput" placeholder="Type a message..." class="message-input">
+            <button onclick="sendMessage()" class="send-button">Send</button>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
