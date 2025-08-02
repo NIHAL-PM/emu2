@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, render_template
 from pymongo import MongoClient
+from pymongo.server_api import ServerApi
 from datetime import datetime
 import hashlib
 from cryptography.fernet import Fernet
@@ -12,17 +13,28 @@ CORS(app)
 # MongoDB connection
 uri = os.environ.get('MONGODB_URI')
 if not uri:
-    raise ValueError("MONGODB_URI environment variable is not set")
+    print("Warning: MONGODB_URI environment variable is not set")
+    # Use a default connection for development (this will fail in production)
+    uri = "mongodb://localhost:27017/"
 
 try:
-    client = MongoClient(uri, server_api={'version': '1', 'strict': True, 'deprecation_errors': True})
+    # Only use server_api if it's a MongoDB Atlas connection
+    if "mongodb.net" in uri or "mongodb+srv" in uri:
+        client = MongoClient(uri, server_api=ServerApi('1'))
+    else:
+        client = MongoClient(uri)
+    
     # Verify the connection
     client.admin.command('ping')
     db = client['chat_app']
     messages_collection = db['messages']
+    print("MongoDB connection successful")
 except Exception as e:
     print(f"Failed to connect to MongoDB: {str(e)}")
-    raise
+    # Don't raise the exception, allow app to start
+    client = None
+    db = None
+    messages_collection = None
 
 # Encryption setup
 key = os.environ.get('ENCRYPTION_KEY')
@@ -35,9 +47,19 @@ cipher = Fernet(key if isinstance(key, bytes) else key.encode())
 def index():
     return render_template('index.html')
 
+@app.route('/test')
+def test():
+    return jsonify({
+        'message': 'Function is working!',
+        'timestamp': datetime.utcnow().isoformat()
+    })
+
 @app.route('/send_message', methods=['POST'])
 def send_message():
     try:
+        if messages_collection is None:
+            return jsonify({'error': 'Database not available'}), 503
+            
         data = request.json
         if not data:
             return jsonify({'error': 'No data provided'}), 400
@@ -68,6 +90,9 @@ def send_message():
 @app.route('/get_messages', methods=['GET'])
 def get_messages():
     try:
+        if messages_collection is None:
+            return jsonify({'error': 'Database not available'}), 503
+            
         messages = list(messages_collection.find().sort('timestamp', -1).limit(50))
         decrypted_messages = []
         
@@ -99,6 +124,13 @@ def not_found_error(error):
 @app.route('/health')
 def health_check():
     try:
+        if client is None:
+            return jsonify({
+                'status': 'unhealthy',
+                'mongodb': 'disconnected',
+                'error': 'MongoDB client not initialized'
+            }), 500
+            
         # Check MongoDB connection
         client.admin.command('ping')
         return jsonify({
